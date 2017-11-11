@@ -1,0 +1,332 @@
+```{r}
+setwd("C:/Users/sivam/Downloads/ML/DATA")
+getwd()
+
+#library(rattle)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(randomForest)
+
+train = read.csv("train.csv")
+summary(train)
+```
+```{r}
+test = read.csv("test.csv")
+summary(test)
+```
+
+```{r}
+test$Survived <- rep(0, 418)
+
+```
+
+```{r}
+test$Survived[test$Age<1] <- 1
+test$Survived[test$Sex == 'female'] <- 1
+prop.table(table(test$Sex,test$Survived),1)
+```
+
+```{r}
+train$Child <- 0
+train$Child[train$Age < 18] <- 1
+train$Child = as.factor(train$Child)
+prop.table(table(train$Child,train$Survived),1)
+```
+
+```{r}
+test$Child <- 0
+test$Child[test$Age < 18] <- 1
+test$Child = as.factor(test$Child)
+str(train)
+prop.table(table(test$Child,test$Survived),1)
+```
+
+```{r}
+aggregate(Survived ~ Child + Sex, data=train, FUN=sum)
+
+aggregate(Survived ~ Child + Sex, data=train, FUN=length)
+
+aggregate(Survived ~ Child + Sex, data=train, FUN=function(x) {sum(x)/length(x)})
+```
+```{r}
+library(randomForest)
+train$Survived=as.factor(train$Survived)
+test$Survived = as.factor(test$Survived)
+
+train$Fare[is.na(train$Fare)] = median(train$Fare,na.rm = TRUE)
+
+test$Fare[is.na(test$Fare)] = median(test$Fare,na.rm = TRUE)
+summary(test)
+
+TitanicRF = randomForest(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare   ,data = train, ntree=2500, importance=TRUE)
+
+Prediction <- predict(TitanicRF , test, type = "response")
+summary(Prediction)
+```
+
+```{r}
+submit <- data.frame(PassengerId = test$PassengerId, Survived = Prediction)
+
+write.csv(submit, file = "Titanic.csv", row.names = FALSE)
+summary(test$Survived)
+```
+
+```{r}
+table(test$Child)
+str(train)
+
+
+
+```
+```{r}
+str(read.csv("train.csv"))
+```
+```{r}
+table(train$Cabin,train$Survived)
+```
+```{r}
+combi <- rbind(train, test)
+combi$Name <- as.character(combi$Name)
+strsplit(combi$Name[1], split='[,.]')
+?sapply
+
+strsplit(combi$Name, split='[,.]')[[1]]
+
+strsplit(combi$Name[1], split='[,.]')[[1]][2]
+
+```
+
+```{r}
+combi$Title <- sapply(combi$Name, FUN=function(x) {strsplit(x, split='[,.]')[[1]][2]})
+
+combi$Title <- sub(' ', '', combi$Title)
+
+table(combi$Title)
+```
+```{r}
+combi$Title[combi$Title %in% c('Mme', 'Mlle')] <- 'Mlle'
+
+combi$Title[combi$Title %in% c('Capt', 'Don', 'Major', 'Sir')] <- 'Sir'
+
+combi$Title[combi$Title %in% c('Dona', 'Lady', 'the Countess', 'Jonkheer')] <- 'Lady'
+
+table(combi$Title)
+
+```
+```{r}
+combi$Title <- factor(combi$Title)
+
+combi$FamilySize <- combi$SibSp + combi$Parch + 1
+
+combi$Surname <- sapply(combi$Name, FUN=function(x) {strsplit(x, split='[,.]')[[1]][1]})
+
+combi$FamilyID <- paste(as.character(combi$FamilySize), combi$Surname, sep="")
+
+table(combi$FamilyID[1:5])
+```
+```{r}
+combi$FamilyID[combi$FamilySize <= 2] <- 'Small'
+
+table(combi$FamilyID)
+```
+```{r}
+famIDs <- data.frame(table(combi$FamilyID))
+
+famIDs <- famIDs[famIDs$Freq <= 2,]
+
+combi$FamilyID[combi$FamilyID %in% famIDs$Var1] <- 'Small'
+
+combi$FamilyID <- factor(combi$FamilyID)
+
+famIDs
+
+```
+```{r}
+train <- combi[1:891,]
+test <- combi[892:1309,]
+
+fit <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked + Title + FamilySize + FamilyID,
+               data=train, 
+               method="class")
+
+plot(fit)
+text(fit)
+```
+```{r}
+summary(combi$Age)
+summary(combi$Embarked)
+```
+
+```{r}
+which(combi$Embarked == '')
+```
+```{r}
+combi$Embarked[c(which(combi$Embarked == ''))] = "S"
+
+combi$Embarked <- factor(combi$Embarked)
+
+summary(combi$Embarked)
+```
+```{r}
+summary(combi$Fare)
+
+```
+```{r}
+which(is.na(combi$Fare))
+```
+```{r}
+combi$Fare[which(is.na(combi$Fare))] <- median(combi$Fare, na.rm=TRUE)
+summary(combi$Fare)
+```
+
+```{r}
+Agefit <- rpart(Age ~ Pclass + Sex + SibSp + Parch + Fare + Embarked + Title + FamilySize,
+                  data=combi[!is.na(combi$Age),], 
+                  method="anova")
+combi$Age[is.na(combi$Age)] <- predict(Agefit, combi[is.na(combi$Age),])
+```
+
+
+```{r}
+combi$FamilyID2 <- combi$FamilyID
+
+combi$FamilyID2 <- as.character(combi$FamilyID2)
+
+combi$FamilyID2[combi$FamilySize <= 3] <- 'Small'
+
+combi$FamilyID2 <- factor(combi$FamilyID2)
+
+table(combi$FamilyID2)
+```
+```{r}
+train <- combi[1:891,]
+test <- combi[892:1309,]
+
+set.seed(415)
+
+fit <- randomForest(as.factor(Survived) ~ Pclass + Sex + Age + SibSp + Parch + Fare +
+                                            Embarked + Title + FamilySize + FamilyID2,
+                      data=train, 
+                      importance=TRUE, 
+                      ntree=2000)
+
+varImpPlot(fit)
+```
+```{r}
+Prediction <- predict(fit, test)
+
+submit <- data.frame(PassengerId = test$PassengerId, Survived = Prediction)
+
+write.csv(submit, file = "firstforest.csv", row.names = FALSE)
+```
+
+```{r}
+table(combi$Cabin[combi$Cabin == ""])
+
+combi$Cabin1 = as.factor(substr(combi$Cabin,1,1))
+
+
+```
+```{r}
+table(combi$Cabin1,combi$Survived)
+```
+```{r}
+train <- combi[1:891,]
+test <- combi[892:1309,]
+library(randomForest)
+
+set.seed(415)
+
+fit <- randomForest(as.factor(Survived) ~ Pclass + Sex + Age + SibSp + Parch + Fare +
+                                            Embarked + Title + FamilySize + FamilyID2 + Cabin1,
+                      data=train, 
+                      importance=TRUE, 
+                      ntree=2000)
+
+varImpPlot(fit)
+
+```
+
+
+
+```{r}
+Prediction <- predict(fit, test)
+
+submit <- data.frame(PassengerId = test$PassengerId, Survived = Prediction)
+
+write.csv(submit, file = "firstforest.csv", row.names = FALSE)
+```
+
+```{r}
+install.packages("grid")
+install.packages('party')
+library(party)
+```
+```{r}
+set.seed(415)
+
+train <- combi[1:891,]
+test <- combi[892:1309,]
+
+str(combi)
+
+fit <- cforest(as.factor(Survived) ~ Pclass + Sex + Age +  Parch + Fare +
+                                       Embarked + Title +  FamilyID2 + Cabin1,
+                 data = train, 
+                 controls=cforest_unbiased(
+                ntree = 2500, mtry = 5),xtrafo = ptrafo, ytrafo = ptrafo, scores = NULL)
+
+
+Prediction <- predict(fit, test, OOB=TRUE, type = "response")
+
+submit <- data.frame(PassengerId = test$PassengerId, Survived = Prediction)
+
+write.csv(submit, file = "final.csv", row.names = FALSE)
+```
+```{r}
+str(train)
+train$Ticket = as.factor(train$Ticket)
+cor(train[c("Survived","Pclass", "Age" , "Parch","Fare", "Ticket" )])
+```
+
+```{r}
+combi$Child[combi$Age < 18] <- 'Child'
+combi$Child[combi$Age >= 18] <- 'Adult'
+
+table(combi$Child, combi$Survived)
+```
+```{r}
+combi$Mother <- 'Not Mother'
+combi$Mother[combi$Sex == 'female' & combi$Parch > 0 & combi$Age > 18 & combi$Title != 'Miss'] <- 'Mother'
+
+# Show counts
+table(combi$Mother, combi$Survived)
+```
+```{r}
+combi$Child  <- factor(combi$Child)
+combi$Mother <- factor(combi$Mother)
+str(combi)
+```
+```{r}
+set.seed(415)
+
+train <- combi[1:891,]
+test <- combi[892:1309,]
+
+str(combi)
+
+fit <- cforest(as.factor(Survived) ~ Pclass + Sex + Age +  Parch + Fare +
+                                       Embarked + Title +  FamilyID2 + Cabin1 + Child + Mother,
+                 data = train, 
+                 controls=cforest_unbiased(
+                ntree = 501, mtry = 5))
+?mtry
+
+Prediction <- predict(fit, test, OOB=TRUE, type = "response")
+
+submit <- data.frame(PassengerId = test$PassengerId, Survived = Prediction)
+
+write.csv(submit, file = "final.csv", row.names = FALSE)
+```
+
